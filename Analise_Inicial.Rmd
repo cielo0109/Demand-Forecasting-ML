@@ -1,0 +1,62 @@
+---
+title: "Análises"
+author: "Cielo Cuadrao"
+date: "2025-09-11"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+library(readxl)
+library(dplyr)
+```
+
+```{r}
+dados = read_excel("banco_Limpo.xlsx")
+ dados$date = as.Date(dados$date)
+#transformando o que precisa em fator
+dados$tipo_refeicao = as.factor(dados$tipo_refeicao)
+dados$categoria_padrao = as.factor(dados$categoria_padrao)
+dados$categoria_vegano = as.factor(dados$categoria_vegano)
+dados$dia_semana = as.factor(dados$dia_semana)
+dados$mes = as.factor(dados$mes)
+dados$almoco = as.factor(dados$almoco)
+dados$periodo_semestre = as.factor(dados$periodo_semestre)
+dados$restaurante_utilizado= as.factor(dados$restaurante_utilizado)
+
+```
+
+```{r}
+dados %>% summary()
+library(ggplot2)
+library(purrr)
+
+# Defina a resposta
+resposta <- "quantidade"
+
+# Pegue todas as variáveis categóricas (fatores)
+variaveis <- setdiff(names(dados)[-1], resposta)
+
+# Criar um boxplot para cada variável categórica
+plots <- map(variaveis, function(var) {
+  ggplot(dados, aes_string(x = var, y = resposta)) +
+    geom_boxplot(fill = "steelblue") +
+    labs(x = var, y = resposta, title = paste("Boxplot de", resposta, "por", var)) +
+    theme_minimal()
+})
+
+# Mostrar todos (um abaixo do outro)
+plots
+
+```
+```{r}
+#série temporal?
+ggplot(dados, aes(x = date, y = quantidade)) +
+  geom_line(color = "steelblue", linewidth = 1) +
+  
+  labs(x = "Data", y = "Quantidade", 
+       title = "Série temporal de Quantidade ao longo do tempo") +
+  theme_minimal()
+```
+
