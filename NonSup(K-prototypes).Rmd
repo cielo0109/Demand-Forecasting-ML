@@ -1,0 +1,201 @@
+---
+title: "Não Supervisionado"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(clustMixType) 
+library(readxl)
+
+```
+
+```{r}
+dados_raw <- read_excel("dados_completos.xlsx") %>% tibble::as_tibble()
+
+dados_raw$date <- as.Date(dados_raw$date)
+
+dados_raw <- dados_raw %>%
+  mutate(
+    tipo_refeicao = as.factor(tipo_refeicao),
+    categoria_padrao = as.factor(categoria_padrao),
+    categoria_vegano = as.factor(categoria_vegano),
+    dia_semana = as.factor(dia_semana),
+    mes = as.factor(mes),
+    almoco = as.factor(almoco),
+    periodo_semestre = as.factor(periodo_semestre),
+    restaurante_utilizado = as.factor(restaurante_utilizado),
+    quantidade = as.integer(quantidade),
+    feriado_dummy = as.factor(feriado_dummy)
+  )
+
+glimpse(dados_raw)
+
+dados_raw <- dados_raw %>% mutate(row_id = row_number())
+
+dados_proc <- dados_raw %>%
+  select(-date, -almoco) %>%        
+  mutate(
+    quantidade = as.numeric(scale(as.numeric(quantidade)))) %>%
+  mutate(across(where(is.character), as.factor))
+
+message("linhas no original: ", nrow(dados_raw))
+message("linhas no processamento (com row_id): ", nrow(dados_proc))
+
+
+used_idx <- which(complete.cases(dados_proc %>% select(-row_id)))
+length(used_idx) 
+dados_kproto <- dados_proc %>% filter(row_id %in% used_idx) %>% select(-row_id)
+
+stopifnot(length(used_idx) == nrow(dados_kproto))
+message("Observações usadas no kproto: ", nrow(dados_kproto))
+
+```
+```{r}
+wss <- numeric()
+max_k <- 20
+set.seed(123)
+for (k in 2:max_k) {
+  kp <- kproto(x = dados_kproto, k = k, nstart = 5)
+  wss[k - 1] <- kp$tot.withinss
+}
+elbow_data <- tibble(k = 2:max_k, wss = wss)
+
+library(ggplot2)
+ggplot(elbow_data, aes(x = k, y = wss)) +
+  geom_line() + geom_point() +
+  scale_x_continuous(breaks = 2:max_k) +
+  labs(title = "Método do Cotovelo para K-Prototypes",
+       x = "Número de Clusters (K)",
+       y = "Total Within-Cluster Sum of Squares (WSS)")
+
+```
+```{r}
+set.seed(123)
+k_choice <- 6
+kproto_resultado <- kproto(x = dados_kproto, k = k_choice, nstart = 25, lambda = NULL)
+
+print(kproto_resultado$centers)
+
+mapeamento <- tibble(row_id = used_idx, cluster = kproto_resultado$cluster)
+dados_com_cluster <- dados_raw %>%
+  left_join(mapeamento, by = "row_id") %>%
+  arrange(row_id)
+
+dados_com_cluster <- dados_com_cluster %>%
+  mutate(cluster = ifelse(is.na(cluster), 0L, as.integer(cluster)))
+```
+```{r}
+dados_com_cluster %>% head()
+
+kproto_resultado$centers
+```
+```{r}
+dadoss <- dados_com_cluster
+perfil_numerico <- dadoss %>%
+  group_by(as.factor(cluster)) %>%
+  summarise(
+    contagem = n(),
+    media_quantidade = mean(quantidade),
+    mediana_quantidade = median(quantidade),
+    min_quantidade = min(quantidade),
+    max_quantidade = max(quantidade),
+  ) %>%
+  arrange(media_quantidade) 
+
+print(perfil_numerico)
+```
+## Cluster 1: Demanda Média-Alta (Jantar RU - Meio Semestre)
+
+**Perfil:** Jantares no RU, servindo bovino, tipicamente às quartas-feiras no meio do semestre.
+
+## Cluster 2: Vale da Demanda (Jantar RA - Meio Semestre)
+
+**Perfil:** Jantares no RA, servindo bovino, tipicamente às sextas-feiras no meio do semestre.
+
+## Cluster 3: Demanda Média (Almoço RS - Início Semestre)
+
+**Perfil:** Almoços no RS, servindo bovino, tipicamente às terças-feiras no início do semestre.
+
+## Cluster 4: Demanda Baixa (Almoço RS - Férias)
+
+**Perfil:** Almoços no RS, servindo frango, tipicamente às quartas-feiras nas férias (julho).
+
+## Cluster 5: Pico de Demanda (Almoço RU - Início Semestre)
+
+**Perfil:** Almoços no RU, servindo bovino, tipicamente às segundas-feiras no início do semestre.
+
+## Cluster 6: Demanda Baixa (Jantar RS - Fim Semestre)
+
+**Perfil:** Jantares no RS, servindo frango, tipicamente às segundas-feiras no fim do semestre.
+
+```{r}
+
+perfil_restaurante <- dadoss %>%
+  count(cluster, restaurante_utilizado) %>%  
+  group_by(cluster) %>%                     
+  mutate(percentual = n / sum(n)) %>%        
+  arrange(cluster, desc(percentual))        
+
+print(perfil_restaurante)
+```
+```{r}
+library(ggplot2)
+
+ggplot(dadoss, 
+       aes(x = as.factor(cluster), y = quantidade, fill = cluster)) +
+  geom_boxplot() +
+  labs(title = "Distribuição da Quantidade por Cluster",
+       x = "Cluster",
+       y = "Quantidade") +
+  theme_minimal()
+```
+```{r}
+library(ggplot2)
+
+
+ggplot(dadoss, aes(x = as.factor(cluster), fill = restaurante_utilizado)) +
+  geom_bar(position = "fill") + 
+  labs(title = "Composição de 'Restaurante' por Cluster",
+       x = "Cluster",
+       y = "Percentual",
+       fill = "Restaurante") +
+  theme_minimal()
+```
+
+```{r}
+ggplot(dadoss, aes(x = quantidade, fill = as.factor(cluster))) +
+  geom_density(alpha = 0.7) + 
+  facet_wrap(~ cluster, ncol = 2) + 
+  labs(title = "Distribuição (Forma) da Demanda por Cluster",
+       x = "Quantidade",
+       y = "Densidade") +
+  theme(legend.position = "none") 
+```
+
+```{r}
+library(ggplot2)
+
+# Lembre-se, 'dadoss' é o seu dataframe que já filtrou o cluster 0
+ggplot(dadoss, 
+       aes(x = as.factor(cluster), fill = tipo_refeicao)) +
+  geom_bar(position = "fill") + # "fill" mostra a proporção em 100%
+  labs(title = "Composição do Tipo de Refeição por Cluster",
+       x = "Cluster",
+       y = "Percentual",
+       fill = "Tipo de Refeição") +
+  theme_minimal()
+```
+
+```{r}
+ggplot(dadoss, 
+       aes(x = as.factor(cluster), fill = categoria_padrao)) +
+  geom_bar(position = "fill") + # "fill" mostra a proporção em 100%
+  labs(title = "Composição do Tipo de Refeição por Cluster",
+       x = "Cluster",
+       y = "Percentual",
+       fill = "Tipo de Refeição") +
+  theme_minimal()
+```
+
+
