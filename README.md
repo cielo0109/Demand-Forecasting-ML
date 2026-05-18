@@ -15,8 +15,7 @@ Los comedores universitarios enfrentan un desafío operativo recurrente: prepara
 ## Visión General del Pipeline
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        PIPELINE DE DATOS                            │
+┌─────────────────────────────────────────────────────────────────────┐                
 │                                                                     │
 │  Datos Crudos       Capa ETL              Capa de Modelos           │
 │  ────────────       ─────────             ─────────────────         │
@@ -202,11 +201,10 @@ jupyter notebook notebooks/
 # 4. Para los análisis en R, abrir los archivos de r_analysis/ en RStudio
 # Paquetes R requeridos: tidyverse, readxl, ggplot2, clustMixType
 ```
-
 ---
-
 ## Contexto Académico
 
 Este proyecto fue desarrollado como trabajo final aplicando técnicas de machine learning supervisado y no supervisado sobre un dataset operacional real de una universidad pública brasileña. El objetivo fue tanto la precisión predictiva como la interpretabilidad — haciendo que los modelos sean accionables para los gestores de comedores que planifican las cantidades diarias de comidas.
+
 
 **Referencia:** [Desperdicio Alimentario y Machine Learning — Paper de Investigación](reports/desperdicio_alimentar_e_machine_learning.pdf)
